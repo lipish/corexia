@@ -23,15 +23,15 @@ export default function DatasetsPage() {
     try {
       setSubmitting(true); setError(null);
       if (!name.trim()) { setError("Name is required"); setSubmitting(false); return; }
-      let samples: any[]|undefined = undefined;
+      let samples: Array<Record<string, unknown>> | undefined = undefined;
       if (file) {
         const text = await file.text();
         const lines = text.split(/\r?\n/);
-        const arr: any[] = [];
+        const arr: Array<Record<string, unknown>> = [];
         for (const ln of lines) {
           const t = ln.trim();
           if (!t) continue;
-          try { arr.push(JSON.parse(t)); } catch { /* skip invalid lines */ }
+          try { const obj = JSON.parse(t); if (obj && typeof obj === "object" && !Array.isArray(obj)) arr.push(obj as Record<string, unknown>); } catch { /* skip invalid lines */ }
         }
         if (arr.length) samples = arr;
       }
@@ -43,8 +43,9 @@ export default function DatasetsPage() {
       if (!res.ok) throw new Error(`http ${res.status}`);
       setOpen(false); setName(""); setFile(null);
       reload();
-    } catch (e:any) {
-      setError(e?.message || "Failed to create dataset");
+    } catch (e: unknown) {
+      const msg = typeof e === "object" && e && "message" in e ? String((e as {message: unknown}).message) : "Failed to create dataset";
+      setError(msg);
     } finally {
       setSubmitting(false);
     }

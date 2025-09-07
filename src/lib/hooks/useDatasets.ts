@@ -16,17 +16,26 @@ export function useDatasets() {
     async function load() {
       try {
         const url = `${API_BASE}/datasets`;
-        const res = await fetch(url, { signal: ctrl.signal, headers: { "accept": "application/json" } });
+        const token = typeof window !== "undefined" ? localStorage.getItem("corexia:token") : null;
+        const headers: Record<string, string> = { accept: "application/json" };
+        if (token) headers["authorization"] = `Bearer ${token}`;
+        const res = await fetch(url, { signal: ctrl.signal, headers });
         if (!res.ok) throw new Error(`http ${res.status}`);
         const json = await res.json();
         // Map API -> UI type
-        const mapped: Dataset[] = (json as any[]).map((d) => ({
-          id: d.id,
-          name: d.name,
-          samples: Number(d.samples_count ?? 0),
-          sizeMB: Math.max(0, Math.round(((d.size_bytes ?? 0) / (1024 * 1024)) * 10) / 10),
-          createdAt: String(d.created_at ?? "").slice(0, 10),
-        }));
+        const arr = Array.isArray(json) ? (json as unknown[]) : [];
+        const toNum = (v: unknown) => (typeof v === "number" ? v : Number(v ?? 0));
+        const mapped: Dataset[] = arr.map((raw) => {
+          const d = raw as Record<string, unknown>;
+          const sizeBytes = toNum(d.size_bytes);
+          return {
+            id: String(d.id ?? ""),
+            name: String(d.name ?? ""),
+            samples: toNum((d as Record<string, unknown>).samples_count),
+            sizeMB: Math.max(0, Math.round(((sizeBytes) / (1024 * 1024)) * 10) / 10),
+            createdAt: String(d.created_at ?? "").slice(0, 10),
+          } as Dataset;
+        });
         if (!canceled) setData(mapped);
       } catch (e) {
         // Fallback to mock if API not reachable
