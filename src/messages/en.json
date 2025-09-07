@@ -1,0 +1,18 @@
+{
+  "app": { "name": "LLM Platform" },
+  "nav": {
+    "title": "LLM Platform",
+    "dashboard": "Dashboard",
+    "datasets": "Datasets",
+    "finetunes": "Finetunes",
+    "models": "Models",
+    "inference": "Inference",
+    "evaluations": "Evaluations",
+    "settings": "Settings"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Overview of datasets, finetunes, models and evaluations"
+  }
+}
+
