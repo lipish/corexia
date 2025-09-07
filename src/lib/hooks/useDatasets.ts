@@ -7,6 +7,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
 export function useDatasets() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Dataset[]>([]);
+  const [version, setVersion] = useState(0);
 
   useEffect(() => {
     let canceled = false;
@@ -37,7 +38,8 @@ export function useDatasets() {
 
     load();
     return () => { canceled = true; ctrl.abort(); };
-  }, []);
+  }, [version]);
 
-  return {loading, data};
+  const reload = () => setVersion(v => v + 1);
+  return {loading, data, reload};
 }

@@ -1,6 +1,6 @@
 use std::{env, net::SocketAddr};
 
-use axum::{extract::State, routing::{get, post}, Json, Router};
+use axum::{extract::State, routing::{get, post, delete}, Json, Router};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
@@ -74,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/healthz", get(health))
         .route("/datasets", get(list_datasets).post(create_dataset))
-        .route("/datasets/:id", get(get_dataset))
+        .route("/datasets/:id", get(get_dataset).delete(delete_dataset))
         .route("/datasets/:id/samples", post(add_samples))
         .route("/finetunes/:fid/datasets/:did", post(link_dataset_to_finetune))
         .with_state(state)
@@ -218,3 +218,14 @@ async fn link_dataset_to_finetune(
     Ok(Json(serde_json::json!({"ok": true, "finetune_id": fid, "dataset_id": did})))
 }
 
+
+
+async fn delete_dataset(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> anyhow::Result<Json<serde_json::Value>> {
+    sqlx::query!("DELETE FROM datasets WHERE id = $1", id)
+        .execute(&state.pool)
+        .await?;
+    Ok(Json(serde_json::json!({"ok": true, "id": id})))
+}

@@ -4,11 +4,60 @@ import {useDatasets} from "@/lib/hooks/useDatasets";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Modal } from "@/components/ui/modal";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8080";
+
 
 export default function DatasetsPage() {
-  const {loading, data} = useDatasets();
+  const {loading, data, reload} = useDatasets();
   const [q, setQ] = useState("");
   const [sortBy, setSortBy] = useState<"name"|"samples"|"sizeMB"|"createdAt">("createdAt");
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [file, setFile] = useState<File|null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string|null>(null);
+
+  async function handleCreate() {
+    try {
+      setSubmitting(true); setError(null);
+      if (!name.trim()) { setError("Name is required"); setSubmitting(false); return; }
+      let samples: any[]|undefined = undefined;
+      if (file) {
+        const text = await file.text();
+        const lines = text.split(/\r?\n/);
+        const arr: any[] = [];
+        for (const ln of lines) {
+          const t = ln.trim();
+          if (!t) continue;
+          try { arr.push(JSON.parse(t)); } catch { /* skip invalid lines */ }
+        }
+        if (arr.length) samples = arr;
+      }
+      const res = await fetch(`${API_BASE}/datasets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, samples }),
+      });
+      if (!res.ok) throw new Error(`http ${res.status}`);
+      setOpen(false); setName(""); setFile(null);
+      reload();
+    } catch (e:any) {
+      setError(e?.message || "Failed to create dataset");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!(typeof window !== "undefined" && window.confirm && window.confirm("Delete this dataset?"))) return;
+    await fetch(`${API_BASE}/datasets/${id}`, { method: "DELETE" });
+    reload();
+  }
+
+
+
   const [dir, setDir] = useState<"asc"|"desc">("desc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -55,6 +104,8 @@ export default function DatasetsPage() {
           placeholder="Search name..."
           className="w-[240px]"
         />
+        <Button onClick={()=>setOpen(true)}>Create Dataset</Button>
+
         <div className="ml-auto flex gap-2 items-center text-sm">
           <label>Sort</label>
           <select className="h-9 rounded-md border bg-background px-2" value={sortBy} onChange={(e)=>setSortBy(e.target.value as "createdAt"|"name"|"samples"|"sizeMB")}>
@@ -81,11 +132,12 @@ export default function DatasetsPage() {
               <TableHead>Samples</TableHead>
               <TableHead>Size (MB)</TableHead>
               <TableHead>Created</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4}>Loading...</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5}>Loading...</TableCell></TableRow>
             ) : pageItems.length ? (
               pageItems.map(d => (
                 <TableRow key={d.id}>
@@ -93,10 +145,14 @@ export default function DatasetsPage() {
                   <TableCell>{d.samples.toLocaleString()}</TableCell>
                   <TableCell>{d.sizeMB}</TableCell>
                   <TableCell>{d.createdAt}</TableCell>
+                  <TableCell>
+                    <Button variant="outline" onClick={()=>handleDelete(d.id)}>Delete</Button>
+                  </TableCell>
                 </TableRow>
               ))
+
             ) : (
-              <TableRow><TableCell colSpan={4}>No results</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5}>No results</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -109,6 +165,26 @@ export default function DatasetsPage() {
         <Button variant="outline" disabled={current<=1} onClick={()=>setPage(p=>Math.max(1,p-1))}>Prev</Button>
         <Button variant="outline" disabled={current>=totalPages} onClick={()=>setPage(p=>Math.min(totalPages,p+1))}>Next</Button>
       </div>
+
+      <Modal open={open} onClose={()=>setOpen(false)} title="Create dataset">
+        <div className="space-y-3">
+          {error ? <p className="text-red-600 text-sm">{error}</p> : null}
+          <div className="space-y-1">
+            <label className="text-sm">Name</label>
+            <Input value={name} onChange={(e)=>setName(e.target.value)} placeholder="Dataset name" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm">JSONL file (optional)</label>
+            <input type="file" accept=".jsonl,.ndjson,application/jsonl,application/x-ndjson" onChange={(e)=>setFile(e.target.files?.[0]||null)} />
+            <p className="text-xs text-muted-foreground">Each line must be a JSON object. Invalid lines are skipped.</p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={()=>setOpen(false)} disabled={submitting}>Cancel</Button>
+            <Button onClick={handleCreate} disabled={submitting}>{submitting ? "Creating..." : "Create"}</Button>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   );
 }
